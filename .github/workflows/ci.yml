@@ -1,7 +1,7 @@
 name: CI
 
 # 分支/PR：只构建 + 校验，产物作为 artifact 上传
-# 新建 tag：构建 + 发布 Release（3 个文件 + 变更记录 + SHA-256）
+# 新建 tag：构建 + 发布 Release（payload.zip + 变更记录 + SHA-256）
 on:
   push:
     branches: ['**']
@@ -47,14 +47,15 @@ jobs:
         shell: pwsh
         run: ./ci/verify.ps1
 
+      - name: 打包 payload.zip
+        shell: pwsh
+        run: ./ci/pack.ps1
+
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: PCL2-RuntimePatch-${{ github.sha }}
-          path: |
-            payload/PclRuntime.dll
-            payload/0Harmony.dll
-            payload/Plain Craft Launcher 2.exe.config
+          path: dist/payload.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -70,10 +71,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           body_path: release-body.md
-          files: |
-            payload/PclRuntime.dll
-            payload/0Harmony.dll
-            payload/Plain Craft Launcher 2.exe.config
+          files: dist/payload.zip
           fail_on_unmatched_files: true
           draft: false
           prerelease: false

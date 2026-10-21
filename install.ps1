@@ -4,16 +4,29 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Target "D:\Games\PCL"
 #
-# 默认目标是本文件夹的上一级目录（即把本包放进 PCL 目录后再执行）。
+# 默认目标自动识别：
+#   - 本文件夹里有 Plain Craft Launcher 2.exe -> 就是本文件夹（解压到 PCL 目录的情况）
+#   - 否则                                   -> 本文件夹的上一级（整个包放进 PCL 目录的情况）
 param(
-    [string]$Target = (Split-Path -Parent $PSScriptRoot)
+    [string]$Target
 )
 
 $ErrorActionPreference = 'Stop'
 
 $exeName  = 'Plain Craft Launcher 2.exe'
-$payload  = Join-Path $PSScriptRoot 'payload'
 $files    = @('Plain Craft Launcher 2.exe.config', 'PclRuntime.dll', '0Harmony.dll')
+
+# 3 个文件可能在 .\payload\（源码仓库布局），也可能与本脚本同级（zip 解压布局）
+$payload = Join-Path $PSScriptRoot 'payload'
+if (-not (Test-Path (Join-Path $payload 'PclRuntime.dll'))) { $payload = $PSScriptRoot }
+
+if (-not $Target) {
+    if (Test-Path (Join-Path $PSScriptRoot $exeName)) {
+        $Target = $PSScriptRoot
+    } else {
+        $Target = Split-Path -Parent $PSScriptRoot
+    }
+}
 
 # --- 校验目标 ---
 if (-not (Test-Path $Target -PathType Container)) {

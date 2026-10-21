@@ -3,14 +3,25 @@
 # 用法：
 #   powershell -ExecutionPolicy Bypass -File uninstall.ps1
 #   powershell -ExecutionPolicy Bypass -File uninstall.ps1 -Target "D:\Games\PCL"
+# 默认目标自动识别：
+#   - 本文件夹里有 Plain Craft Launcher 2.exe -> 就是本文件夹
+#   - 否则                                   -> 本文件夹的上一级
 param(
-    [string]$Target = (Split-Path -Parent $PSScriptRoot)
+    [string]$Target
 )
 
 $ErrorActionPreference = 'Stop'
 
 $exeName = 'Plain Craft Launcher 2.exe'
 $files   = @('Plain Craft Launcher 2.exe.config', 'PclRuntime.dll', '0Harmony.dll')
+
+if (-not $Target) {
+    if (Test-Path (Join-Path $PSScriptRoot $exeName)) {
+        $Target = $PSScriptRoot
+    } else {
+        $Target = Split-Path -Parent $PSScriptRoot
+    }
+}
 
 if (-not (Test-Path $Target -PathType Container)) {
     throw "目标目录不存在：$Target"

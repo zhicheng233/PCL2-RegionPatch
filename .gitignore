@@ -4,6 +4,7 @@ src/obj/
 
 # 本地生成
 release-body.md
+dist/
 
 # 编辑器
 .vs/

@@ -1,10 +1,12 @@
 ﻿# 生成 Release 正文：
 #   1) 上一个 tag → 本次 tag 之间的全部提交
-#   2) payload\ 里 3 个交付文件的 SHA-256
+#   2) payload.zip 的 SHA-256
+#   3) zip 内 3 个交付文件的 SHA-256
 # 需要完整 git 历史（actions/checkout 的 fetch-depth: 0）。
 param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [string]$PayloadDir,
+    [string]$ZipPath,
     [string]$OutFile
 )
 $ErrorActionPreference = 'Stop'
@@ -18,6 +20,7 @@ $OutputEncoding = $utf8
 # 以脚本所在目录的上一级为仓库/项目根，这样在任何 CWD 下都能跑
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $PayloadDir) { $PayloadDir = Join-Path $repo 'payload' }
+if (-not $ZipPath)    { $ZipPath    = Join-Path $repo 'dist\payload.zip' }
 if (-not $OutFile)    { $OutFile    = Join-Path $repo 'release-body.md' }
 
 $files = @('PclRuntime.dll', '0Harmony.dll', 'Plain Craft Launcher 2.exe.config')
@@ -90,6 +93,18 @@ foreach ($f in $files) {
     }
 }
 
+$zipInfo = $null
+if (Test-Path $ZipPath) {
+    $zi = Get-Item $ZipPath
+    $zipInfo = [pscustomobject]@{
+        Name = $zi.Name
+        Size = $zi.Length
+        Hash = (Get-FileHash $zi.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+} else {
+    Write-Host "提示：$ZipPath 不存在，正文里不含压缩包校验和。" -ForegroundColor Yellow
+}
+
 # ---------- 拼装 markdown ----------
 $md = [System.Collections.Generic.List[string]]::new()
 $md.Add('## 变更内容')
@@ -106,6 +121,16 @@ if ($env:GITHUB_REPOSITORY -and $prevTag) {
 
 $md.Add('## 文件校验（SHA-256）')
 $md.Add('')
+if ($zipInfo) {
+    $md.Add('**' + $zipInfo.Name + '**（Release 附件）')
+    $md.Add('')
+    $md.Add('| 大小 | SHA-256 |')
+    $md.Add('| ---: | --- |')
+    $md.Add('| ' + $zipInfo.Size + ' B | `' + $zipInfo.Hash + '` |')
+    $md.Add('')
+}
+$md.Add('**压缩包内的文件**')
+$md.Add('')
 $md.Add('| 文件 | 大小 | SHA-256 |')
 $md.Add('| --- | ---: | --- |')
 foreach ($r2 in $rows) {
@@ -115,18 +140,32 @@ $md.Add('')
 
 $md.Add('## 安装')
 $md.Add('')
-$md.Add('把上面三个文件放到 PCL 目录（与 `Plain Craft Launcher 2.exe` 同级），启动即可。')
-$md.Add('**不需要修改 exe**，PCL 自动更新替换 exe 后补丁依然生效。')
+$md.Add('下载 `payload.zip`，解压到 PCL 目录（与 `Plain Craft Launcher 2.exe` 同级），会得到一个 `payload` 文件夹：')
+$md.Add('')
+$md.Add('```')
+$md.Add('<PCL 目录>\')
+$md.Add('├─ Plain Craft Launcher 2.exe')
+$md.Add('└─ payload\')
+$md.Add('   ├─ install.ps1')
+$md.Add('   ├─ uninstall.ps1')
+$md.Add('   ├─ PclRuntime.dll')
+$md.Add('   ├─ 0Harmony.dll')
+$md.Add('   └─ Plain Craft Launcher 2.exe.config')
+$md.Add('```')
+$md.Add('')
+$md.Add('然后执行（脚本会自动识别上一级是 PCL 目录）：')
 $md.Add('')
 $md.Add('```powershell')
-$md.Add('powershell -ExecutionPolicy Bypass -File install.ps1 -Target "<PCL 目录>"')
+$md.Add('powershell -ExecutionPolicy Bypass -File .\payload\install.ps1')
 $md.Add('```')
 $md.Add('')
 $md.Add('卸载：')
 $md.Add('')
 $md.Add('```powershell')
-$md.Add('powershell -ExecutionPolicy Bypass -File uninstall.ps1 -Target "<PCL 目录>"')
+$md.Add('powershell -ExecutionPolicy Bypass -File .\payload\uninstall.ps1')
 $md.Add('```')
+$md.Add('')
+$md.Add('**不需要修改 exe**，PCL 自动更新替换 exe 后补丁依然生效。')
 $md.Add('')
 $md.Add('校验补丁是否生效：查看 `%TEMP%\PclRuntime.log`，应出现 5 组 `patched` 日志（共 9 处）。')
 
