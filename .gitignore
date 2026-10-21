@@ -1,0 +1,10 @@
+# 构建产物（CI 会重新生成）
+src/bin/
+src/obj/
+
+# 本地生成
+release-body.md
+
+# 编辑器
+.vs/
+*.user

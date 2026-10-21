@@ -1,0 +1,79 @@
+name: CI
+
+# 分支/PR：只构建 + 校验，产物作为 artifact 上传
+# 新建 tag：构建 + 发布 Release（3 个文件 + 变更记录 + SHA-256）
+on:
+  push:
+    branches: ['**']
+    tags: ['*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build:
+    name: 构建
+    runs-on: windows-latest
+    # 仅创建 Release 需要写权限；PR 来自 fork 时 GITHUB_TOKEN 仍是只读
+    permissions:
+      contents: write
+    steps:
+      - name: 检出代码（需要完整历史与 tag 才能生成变更记录）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 构建（产物自动写入 payload\）
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: 校验产物
+        shell: pwsh
+        run: ./ci/verify.ps1
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCL2-RuntimePatch-${{ github.sha }}
+          path: |
+            payload/PclRuntime.dll
+            payload/0Harmony.dll
+            payload/Plain Craft Launcher 2.exe.config
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 生成 Release 正文
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: ./ci/release-notes.ps1 -Tag $env:GITHUB_REF_NAME
+
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release-body.md
+          files: |
+            payload/PclRuntime.dll
+            payload/0Harmony.dll
+            payload/Plain Craft Launcher 2.exe.config
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
