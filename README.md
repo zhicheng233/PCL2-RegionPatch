@@ -87,43 +87,6 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 需要 .NET SDK（`net48`）。
 
-## CI（GitHub Actions）
-
-工作流：`.github/workflows/ci.yml`
-
-| 触发 | 行为 |
-|---|---|
-| push 到任意分支 / PR | 构建 + 校验产物，3 个文件作为 artifact 上传（保留 30 天） |
-| 新建 tag（任意名字） | 额外发布 Release，附件就是那 3 个文件 |
-
-Release 正文自动生成，包含：
-
-- 上一个 tag → 本次 tag 之间的全部提交（`git log --no-merges`，按时间正序）
-- 3 个文件的 SHA-256
-
-本地复现 CI 的三步：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File build.ps1
-powershell -ExecutionPolicy Bypass -File ci\verify.ps1
-powershell -ExecutionPolicy Bypass -File ci\release-notes.ps1 -Tag v1.1.0
-```
-
-`ci\verify.ps1` 会检查 3 个文件存在且非空、两个 DLL 的程序集名正确、config 能解析且
-`appDomainManager*` 与 `AppContextSwitchOverrides` 都在（防止误删长路径开关那行）。
-
-发版：
-
-```powershell
-git tag v1.1.0
-git push origin v1.1.0
-```
-
-> ⚠️ GitHub 只识别**仓库根目录**下的 `.github/workflows/`。
-> 本目录是按"独立仓库"布局的；如果把上层整个 `PCL2-Inject` 目录推成一个仓库，
-> 需要把 `.github/workflows/ci.yml` 移到仓库根目录，并把里面的
-> `./build.ps1`、`./ci/verify.ps1`、`payload/` 改成带本目录名前缀的路径。
-
 ## 环境要求
 
 - Windows + .NET Framework 4.8
