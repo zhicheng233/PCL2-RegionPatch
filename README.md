@@ -96,7 +96,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 1. CLR 读 `Plain Craft Launcher 2.exe.config`，在 `Main` 执行**之前**实例化
    `PclRuntime.PclRuntimeManager`（`AppDomainManager` 子类）。
-2. 此时 `Assembly.GetEntryAssembly()` 还是 `null`；后台线程等 PCL 启动完成（默认 2 s）。
+2. 此时 `Assembly.GetEntryAssembly()` 还是 `null`；后台线程先等待入口程序集，再监听 `PresentationFramework` 加载并挂钩 `Window.Loaded`，确保在 UI 真正启动后再打补丁。
 3. 用 Harmony 给 5 个目标一次性打补丁，打完线程退出。
 
 > 由于PCL2 2.99 的解决方案是临时引入 `ModSecret.RestrictMcDownload` 常量来控制具体流程；导致其应用在编译时，相关逻辑代码被编译器内联直接优化掉了，因为 `RestrictMcDownload` 恒为 `True` 所以正常逻辑永远不可达，然后编译器就把这玩意删掉了，是的没错，有些功能压根就不在最终的CIL里，这东西可以通过 `ILSpy` 对PCL2的反编译结果看出。<br>
@@ -108,7 +108,6 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 |---|---|
 | `PCLRT_NOPATCH=1` | 只注入不打补丁（判断问题是否来自补丁） |
 | `PCLRT_ONLY=1,3` | 只打指定编号的补丁 |
-| `PCLRT_DELAY=3000` | 等 PCL 启动完成后额外等待的毫秒数（默认 2000） |
 | `PCLRT_TRACE=1` | 记录每个首次异常的类型 + 抛出点调用栈 |
 | `PCLRT_ID3=1` | 补丁 3 改为恒等透传（验证 transpiler 本身） |
 
@@ -118,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 |---|---|
 | 启动弹"没有对当前文件夹的权限" | config 少了 `AppContextSwitchOverrides` 那行 |
 | 完全没反应、没有日志 | config 文件名不对（必须是 `<exe 全名>.config`），或 DLL 不在 exe 同目录 |
-| 日志只有 `PatchHost started` | PCL2 还没启动完就被关了；调大 `PCLRT_DELAY` |
+| 日志只有 `PatchHost started` | PCL2 启动过程中被提前关闭，导致尚未等到 `Window.Loaded` |
 | 日志有 `patch failed: ...` | PCL2 版本变了，方法名/签名对不上，需要按 `README-Patch.md` 重新定位 |
 
 
